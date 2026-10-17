@@ -5,4 +5,5 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
+archphoto-core = { version = "0.0.1", path = "../archphoto-core" }
 eframe = "0.37.0"

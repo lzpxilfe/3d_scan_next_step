@@ -214,6 +214,7 @@ version = "0.0.1"
 name = "archphoto-gui"
 version = "0.0.1"
 dependencies = [
+ "archphoto-core",
  "eframe",
 ]
 
