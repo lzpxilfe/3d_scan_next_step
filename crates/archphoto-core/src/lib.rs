@@ -12,8 +12,10 @@
 //! independent evaluation is refused.
 
 pub mod crs;
+pub mod plane;
 pub mod quality;
 pub mod sensing;
+pub mod transform;
 
 /// 3D point as (x, y, z) in an explicit frame's units.
 pub type Point3D = [f64; 3];

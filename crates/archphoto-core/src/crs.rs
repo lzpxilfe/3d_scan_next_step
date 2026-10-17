@@ -5,6 +5,8 @@
 
 use std::fmt;
 
+use crate::ContractResult;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LengthUnit {
     Meter,
@@ -72,15 +74,20 @@ pub struct SpatialFrame {
 }
 
 impl SpatialFrame {
-    #[must_use]
-    pub fn new(crs_id: impl Into<String>, unit: LengthUnit) -> Self {
-        SpatialFrame {
-            crs_id: crs_id.into(),
+    /// Ported from Python `SpatialFrame.__post_init__`: an explicit CRS id is
+    /// mandatory. Use "LOCAL:<name>" for site grids; never blank.
+    pub fn new(crs_id: impl Into<String>, unit: LengthUnit) -> ContractResult<Self> {
+        let crs_id = crs_id.into();
+        if crs_id.is_empty() {
+            return Err("SpatialFrame.crs_id must be set explicitly".into());
+        }
+        Ok(SpatialFrame {
+            crs_id,
             unit,
             axis_order: AxisOrder::EastNorth,
             vertical_datum: VerticalDatum::Unknown,
             geoid_model: None,
-        }
+        })
     }
 
     pub fn with_vertical_datum(mut self, datum: VerticalDatum) -> Self {
@@ -126,11 +133,15 @@ mod tests {
     #[test]
     fn frame_requires_crs_id() {
         let frame = SpatialFrame::new("EPSG:5186", LengthUnit::Meter)
+            .unwrap()
             .with_vertical_datum(VerticalDatum::Orthometric);
         assert_eq!(frame.crs_id, "EPSG:5186");
         assert_eq!(frame.unit, LengthUnit::Meter);
         assert_eq!(frame.vertical_datum, VerticalDatum::Orthometric);
         assert!(frame.is_metric());
+        // 빈 CRS 식별자는 좌표계 없는 좌표다 — 존재해서는 안 된다.
+        let err = SpatialFrame::new("", LengthUnit::Meter).unwrap_err();
+        assert!(err.contains("crs_id must be set explicitly"), "{err}");
     }
 
     #[test]

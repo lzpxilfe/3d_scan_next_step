@@ -204,6 +204,7 @@ mod tests {
 
     fn frame() -> SpatialFrame {
         SpatialFrame::new("LOCAL:test", LengthUnit::Meter)
+            .unwrap()
             .with_vertical_datum(crate::crs::VerticalDatum::Orthometric)
     }
 

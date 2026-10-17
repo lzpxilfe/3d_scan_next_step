@@ -268,7 +268,7 @@ mod tests {
     use crate::crs::LengthUnit;
 
     fn frame() -> SpatialFrame {
-        SpatialFrame::new("LOCAL:test", LengthUnit::Meter)
+        SpatialFrame::new("LOCAL:test", LengthUnit::Meter).unwrap()
     }
 
     #[test]
