@@ -14,6 +14,7 @@
 pub mod crs;
 pub mod mesh;
 pub mod plane;
+pub mod preflight;
 pub mod quality;
 pub mod register;
 pub mod sensing;
