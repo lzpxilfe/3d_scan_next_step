@@ -53,12 +53,32 @@ tests/                 Python 참조 구현 테스트 (합성 테스트만, 실�
 - `01_PRODUCT_REQUIREMENTS.md` / `02_ENGINE_AND_ALGORITHM_REQUIREMENTS.md` 등
 - `AGENTS.md` — 개발 운영 지침
 
+## GUI 화면 미리보기
+
+### 1. 기준점(GCP·검증점) 등록 및 사진 뷰어 픽셀 관측
+좌측 사진 목록, 중앙 사진 뷰어(로드된 사진에 속한 `GCP`·`검증점` 픽셀 관측 마커만 필터링 표시), 우측 좌표계 프레임(`EPSG:5186` 등) 및 기준점 테이블, 하단 상태바의 좌표·높이 기준(`해발` / `타원체고` / `현지 Z` / `Z (기준 미상)`) 정직 표기 화면입니다.
+
+![기준점 등록 및 사진 뷰어 픽셀 관측 화면](docs/screenshots/gui_py_active_survey.png)
+
+### 2. 거리 측정(좌표 산출값 + 기준 대차) 및 파이프라인 상태 분리
+두 3D 좌표 사이의 산출 거리(`좌표 산출값 — 직접 실측이 아님`)와 기준 길이 대비 대차를 표시하며, 하단 파이프라인 탭에서는 자료 입력만으로 `검증(독립)` 상태가 통과로 바뀌지 않도록 분리합니다.
+
+![거리 측정 및 파이프라인 상태 화면](docs/screenshots/gui_py_measure_pipeline.png)
+
+### 3. 초기 실행 화면 (좌표계 미설정 시 점 추가 차단)
+좌표계 프레임을 먼저 적용하기 전에는 무좌표계 기준점 입력 및 측정을 원천 차단합니다.
+
+![초기 실행 화면](docs/screenshots/gui_py_initial.png)
+
 ## 빠른 시작 (스캐폴드 검증용)
 
 ```bash
 # Rust 제품 코어·GUI 테스트 및 정적 분석
 cargo test --workspace
 cargo clippy --workspace --all-targets -- -D warnings
+
+# Rust 데스크톱 GUI 실행 (egui)
+cargo run -p archphoto-gui
 
 # Python 참조 구현 테스트
 PYTHONPATH=src python -m pytest tests -q
