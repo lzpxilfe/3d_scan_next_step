@@ -348,7 +348,7 @@ class MeasurePanel(QWidget):
     def set_point(self, which: str, x: float, y: float, z: float) -> None:
         edits = {"a": (self.a_x, self.a_y, self.a_z), "b": (self.b_x, self.b_y, self.b_z)}
         for edit, value in zip(edits[which], (x, y, z)):
-            edit.setText(f"{value:g}")
+            edit.setText(f"{value:.12g}")
 
     def point(self, which: str) -> tuple[float, float, float] | None:
         edits = {"a": (self.a_x, self.a_y, self.a_z), "b": (self.b_x, self.b_y, self.b_z)}

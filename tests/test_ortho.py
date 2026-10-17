@@ -60,3 +60,22 @@ def test_ortho_honesty_report_discloses_split() -> None:
     assert r["observed_points"] == 2 and r["interpolated_points"] == 1
     assert r["observed_fraction"] == pytest.approx(2 / 3)
     assert r["is_survey_record"] is True and r["unit"] == "mm"
+
+
+def test_non_orthogonal_axes_refused() -> None:
+    with pytest.raises(ValueError, match="orthogonal"):
+        OrthoSpec(origin=(0, 0, 0), u_axis=(1, 0, 0), v_axis=(1, 1, 0), frame=_frame())
+
+
+def test_mismatched_spec_grid_frames_refused() -> None:
+    spec = _spec()
+    other_frame = SpatialFrame(crs_id="LOCAL:t", unit=LengthUnit.METER)
+    grid = OrthoGrid(origin_uv=(0, 0), resolution=1.0, width_px=4, height_px=4, frame=other_frame)
+    with pytest.raises(ValueError, match="must match"):
+        OrthoProduct(
+            points_uv=[(1.0, 1.0)],
+            origin=[OriginKind.OBSERVED],
+            product_kind=ProductKind.SURVEY,
+            spec=spec,
+            grid=grid,
+        )

@@ -63,8 +63,10 @@ def compute_section(
     """Cut ``faces`` with ``plane`` and return the computed section line.
 
     Each triangle that straddles the plane contributes one segment. If
-    ``vertex_origin`` is given, every segment is tagged OBSERVED (face has any
-    observed vertex) or INTERPOLATED (face fully interpolated).
+    ``vertex_origin`` is given, a segment is tagged OBSERVED only when ALL three
+    vertices of the cut triangle are OBSERVED; any interpolated vertex on the
+    face tags the segment INTERPOLATED so hole-fill boundary triangles are never
+    presented as observed fact.
     """
     segments: list[Segment] = []
     seg_origin: list[OriginKind] = []
@@ -77,7 +79,7 @@ def compute_section(
                 face_origins = (vertex_origin[f[0]], vertex_origin[f[1]], vertex_origin[f[2]])
                 seg_origin.append(
                     OriginKind.OBSERVED
-                    if any(o is OriginKind.OBSERVED for o in face_origins)
+                    if all(o is OriginKind.OBSERVED for o in face_origins)
                     else OriginKind.INTERPOLATED
                 )
     return SectionLine(segments, LineOrigin.COMPUTED, plane.frame, seg_origin)
@@ -93,6 +95,8 @@ def _tri_plane_points(
 ) -> list[Point3D]:
     verts = (v0, v1, v2)
     d = (plane.signed_distance(v0), plane.signed_distance(v1), plane.signed_distance(v2))
+    if abs(d[0]) <= tol and abs(d[1]) <= tol and abs(d[2]) <= tol:
+        return []
     pts: list[Point3D] = []
     for i in range(3):
         j = (i + 1) % 3

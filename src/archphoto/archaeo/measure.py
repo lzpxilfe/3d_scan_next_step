@@ -9,7 +9,7 @@ direct tape measurement — that distinction is kept in :attr:`Measurement.deriv
 from __future__ import annotations
 
 from dataclasses import dataclass
-from math import sqrt
+from math import isfinite, sqrt
 
 from archphoto.geom.crs import LengthUnit, SpatialFrame
 
@@ -32,9 +32,19 @@ class Measurement:
     derived: bool = True
     sigma: float | None = None
 
+    def __post_init__(self) -> None:
+        if not isfinite(self.value) or self.value < 0:
+            raise ValueError("Measurement.value must be finite and >= 0")
+        if not all(isfinite(c) for c in self.point_a) or not all(isfinite(c) for c in self.point_b):
+            raise ValueError("Measurement endpoint coordinates must be finite")
+        if self.sigma is not None and (not isfinite(self.sigma) or self.sigma < 0):
+            raise ValueError("Measurement.sigma must be finite and >= 0")
+
 
 def measure_distance(a: Point3D, b: Point3D, frame: SpatialFrame) -> Measurement:
     """Euclidean distance between ``a`` and ``b``, in ``frame`` units."""
+    if not all(isfinite(c) for c in a) or not all(isfinite(c) for c in b):
+        raise ValueError("measure_distance endpoints must be finite")
     d = sqrt((b[0] - a[0]) ** 2 + (b[1] - a[1]) ** 2 + (b[2] - a[2]) ** 2)
     return Measurement(value=d, unit=frame.unit, point_a=a, point_b=b, derived=True)
 
@@ -46,4 +56,6 @@ def length_residual(measured: Measurement, reference_value: float) -> float:
     (CHECK_LENGTH). The reference must come from independent surveying, never
     from the same points used to fit the model.
     """
+    if not isfinite(reference_value) or reference_value <= 0:
+        raise ValueError("reference_value must be finite and positive")
     return measured.value - reference_value

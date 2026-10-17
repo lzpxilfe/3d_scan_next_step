@@ -50,3 +50,12 @@ def test_duplicate_and_orphan_observation_flagged() -> None:
     codes = {i.code for i in preflight_control(pts, obs)}
     assert "duplicate_id" in codes
     assert "orphan_observation" in codes
+
+
+def test_inconsistent_frame_across_points_flagged() -> None:
+    pts = [
+        ControlPoint("GCP-01", ControlRole.GCP, 0, 0, 0, _frame("LOCAL:a", LengthUnit.METER)),
+        ControlPoint("CHK-01", ControlRole.CHECK, 1, 1, 1, _frame("LOCAL:a", LengthUnit.MILLIMETER)),
+    ]
+    issues = preflight_control(pts)
+    assert any(i.code == "inconsistent_frame" and i.severity == "error" for i in issues)

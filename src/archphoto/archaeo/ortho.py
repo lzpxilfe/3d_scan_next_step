@@ -18,7 +18,7 @@ deliverable and is testable without an engine or real data.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from math import sqrt
+from math import isfinite, sqrt
 
 from archphoto.archaeo.surface import OriginKind, ProductKind
 from archphoto.geom.crs import SpatialFrame
@@ -28,8 +28,10 @@ Point2D = tuple[float, float]
 
 
 def _normalize(v: Point3D) -> Point3D:
+    if not all(isfinite(c) for c in v):
+        raise ValueError("axis vector components must be finite")
     n = sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2])
-    if n == 0.0:
+    if n == 0.0 or not isfinite(n):
         raise ValueError("axis vector must be non-zero")
     return (v[0] / n, v[1] / n, v[2] / n)
 
@@ -48,8 +50,17 @@ class OrthoSpec:
     frame: SpatialFrame
 
     def __post_init__(self) -> None:
+        if not all(isfinite(c) for c in self.origin):
+            raise ValueError("OrthoSpec origin coordinates must be finite")
         self.u_axis = _normalize(self.u_axis)
         self.v_axis = _normalize(self.v_axis)
+        dot = (
+            self.u_axis[0] * self.v_axis[0]
+            + self.u_axis[1] * self.v_axis[1]
+            + self.u_axis[2] * self.v_axis[2]
+        )
+        if abs(dot) > 1e-6:
+            raise ValueError("OrthoSpec u_axis and v_axis must be orthogonal")
 
     def project(self, p: Point3D) -> Point2D:
         dx = p[0] - self.origin[0]
@@ -73,6 +84,8 @@ class OrthoGrid:
     frame: SpatialFrame
 
     def __post_init__(self) -> None:
+        if not all(isfinite(c) for c in self.origin_uv) or not isfinite(self.resolution):
+            raise ValueError("OrthoGrid origin_uv and resolution must be finite")
         if self.resolution <= 0:
             raise ValueError("resolution must be positive")
         if self.width_px <= 0 or self.height_px <= 0:
@@ -112,6 +125,8 @@ class OrthoProduct:
     def __post_init__(self) -> None:
         if len(self.origin) != len(self.points_uv):
             raise ValueError("origin length must match points_uv length")
+        if self.spec.frame != self.grid.frame:
+            raise ValueError("OrthoProduct spec.frame and grid.frame must match")
 
     def honesty_report(self) -> dict:
         total = len(self.origin)

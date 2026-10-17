@@ -19,11 +19,12 @@
 | `control.svg` | GCP·기준점 | `sensing.control` |
 | `stitch.svg` | 블록·스캔 정합("붙이기") | `recon.register` |
 | `section.svg` | 단면·프로파일 | `archaeo.section` |
+| `ortho.svg` | 정사영상 투영·격자 | `archaeo.ortho` |
 | `mesh.svg` | 3D 메시 | `mesh.product` |
 | `validate.svg` | 독립 검증 | `quality.checkpoints` |
 | `export.svg` | 내보내기(정제 도구로) | `mesh.export` |
 
-## 통합 방법 (프레임워크 확정 후)
+## 통합 상태
 
-아이콘은 모양만 있고 **위젯 결합은 GUI 프레임워크가 정해져야** 가능합니다. 프레임워크가
-정해지면 `gui/`에서 위젯 액션에 이 SVG를 붙입니다. 현재 `gui/`는 스텁이며 프레임워크는 미확정 [O].
+- Python 참조 구현(`src/archphoto/gui/icons.py`)에서는 `QSvgRenderer`로 9종 모두 툴바 액션에 로드·검증됨 (`tests/test_gui.py`).
+- Rust 제품 GUI(`crates/archphoto-gui`, `egui` — D-2026-10-12-11 확정)에는 추후 텍스처/벡터 렌더러로 연결 예정.

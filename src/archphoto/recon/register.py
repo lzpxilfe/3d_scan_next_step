@@ -23,7 +23,7 @@ from __future__ import annotations
 
 import random
 from dataclasses import dataclass, field
-from math import sqrt
+from math import isfinite, sqrt
 
 from archphoto.archaeo.surface import OriginKind, ProductKind
 from archphoto.geom.crs import SpatialFrame
@@ -48,8 +48,16 @@ class Block:
     origin: list[OriginKind]
 
     def __post_init__(self) -> None:
+        if not self.block_id:
+            raise ValueError("Block.block_id must be set")
         if len(self.origin) != len(self.vertices):
             raise ValueError("origin length must match vertices length")
+        if not all(all(isfinite(c) for c in v) for v in self.vertices):
+            raise ValueError("block vertex coordinates must be finite")
+        n_v = len(self.vertices)
+        for i, j, k in self.faces:
+            if not (0 <= i < n_v and 0 <= j < n_v and 0 <= k < n_v):
+                raise ValueError(f"face vertex index out of bounds ({i}, {j}, {k}) for {n_v} vertices")
 
 
 @dataclass(frozen=True)
@@ -154,19 +162,54 @@ def _dominant_eigenvector_sym4(n: list[list[float]]) -> list[float]:
     return [x / norm for x in vec]
 
 
+def _is_collinear_or_coincident(pts: list[Point3D]) -> bool:
+    if len(pts) < 3:
+        return True
+    p0 = pts[0]
+    max_d2 = 0.0
+    far_idx = 0
+    for idx in range(1, len(pts)):
+        p = pts[idx]
+        dx, dy, dz = p[0] - p0[0], p[1] - p0[1], p[2] - p0[2]
+        d2 = dx * dx + dy * dy + dz * dz
+        if d2 > max_d2:
+            max_d2 = d2
+            far_idx = idx
+    if max_d2 <= 1e-18:
+        return True
+    max_d = sqrt(max_d2)
+    p_far = pts[far_idx]
+    ux, uy, uz = (p_far[0] - p0[0]) / max_d, (p_far[1] - p0[1]) / max_d, (p_far[2] - p0[2]) / max_d
+    max_perp_d2 = 0.0
+    for p in pts[1:]:
+        vx, vy, vz = p[0] - p0[0], p[1] - p0[1], p[2] - p0[2]
+        proj = vx * ux + vy * uy + vz * uz
+        px, py, pz = vx - proj * ux, vy - proj * uy, vz - proj * uz
+        perp_d2 = px * px + py * py + pz * pz
+        if perp_d2 > max_perp_d2:
+            max_perp_d2 = perp_d2
+    return max_perp_d2 <= 1e-12 * max_d2
+
+
 def fit_rigid_transform(
     src: list[Point3D], dst: list[Point3D], with_scale: bool = False
 ) -> tuple[tuple[float, float, float, float], Point3D, float]:
     """Closed-form best similarity mapping ``src[i] -> dst[i]`` (Horn / Umeyama).
 
     Returns (quaternion_xyzw, translation, scale). ``scale`` is 1 when
-    ``with_scale`` is False. Needs at least 3 non-degenerate correspondences.
+    ``with_scale`` is False. Needs at least 3 non-collinear correspondences.
     """
     if len(src) != len(dst):
         raise ValueError("correspondence sets must have equal length")
     n = len(src)
     if n < 3:
         raise ValueError("need at least 3 correspondences")
+    if not all(all(isfinite(c) for c in p) for p in src) or not all(
+        all(isfinite(c) for c in p) for p in dst
+    ):
+        raise ValueError("correspondence coordinates must be finite")
+    if _is_collinear_or_coincident(src) or _is_collinear_or_coincident(dst):
+        raise ValueError("correspondence points must not be collinear or coincident")
 
     def _centroid(pts: list[Point3D]) -> Point3D:
         return (
@@ -211,7 +254,11 @@ def fit_rigid_transform(
             ra = _apply_rot(rot, a)
             num += ra[0] * b[0] + ra[1] * b[1] + ra[2] * b[2]
             den += a[0] * a[0] + a[1] * a[1] + a[2] * a[2]
-        scale = (num / den) if den > 0 else 1.0
+        if den <= 0.0:
+            raise ValueError("degenerate scale estimate: zero source variance")
+        scale = num / den
+        if not isfinite(scale) or scale <= 0.0:
+            raise ValueError("degenerate scale estimate: non-positive scale")
     else:
         scale = 1.0
 
@@ -280,6 +327,8 @@ def register_blocks_ransac(
     """
     if len(ties) < 3:
         raise ValueError("need at least 3 tie points for RANSAC registration")
+    if not isfinite(inlier_threshold) or inlier_threshold <= 0.0:
+        raise ValueError("inlier_threshold must be positive and finite")
     rng = random.Random(seed)
     n = len(ties)
     best_inliers: list[int] | None = None
@@ -361,13 +410,21 @@ def merge_blocks(
     """Stitch registered blocks (all already in ``frame``) into one MeshProduct.
 
     Per-vertex origin is concatenated, so the honesty split survives the merge.
+    Refuses any block whose ``SpatialFrame`` (crs_id, unit, axis_order, or
+    vertical_datum) differs from ``frame``.
     """
     vertices: list[Point3D] = []
     faces: list[tuple[int, int, int]] = []
     origin: list[OriginKind] = []
     offset = 0
     for b in blocks:
-        if b.frame.crs_id != frame.crs_id:
+        if (
+            b.frame.crs_id != frame.crs_id
+            or b.frame.unit != frame.unit
+            or b.frame.axis_order != frame.axis_order
+            or b.frame.vertical_datum != frame.vertical_datum
+            or b.frame.geoid_model != frame.geoid_model
+        ):
             raise ValueError(f"block {b.block_id!r} is not in the target frame; register it first")
         vertices.extend(b.vertices)
         origin.extend(b.origin)

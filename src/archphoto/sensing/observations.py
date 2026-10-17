@@ -14,6 +14,7 @@ recorded but withheld from calibration and used only for validation.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from math import isfinite
 from typing import Optional
 
 
@@ -41,5 +42,7 @@ class PhotoObservation:
     def __post_init__(self) -> None:
         if not self.point_id or not self.photo_id:
             raise ValueError("PhotoObservation requires point_id and photo_id")
-        if self.sigma_px is not None and self.sigma_px < 0:
+        if not (isfinite(self.x_px) and isfinite(self.y_px)):
+            raise ValueError("PhotoObservation pixel coordinates must be finite")
+        if self.sigma_px is not None and (not isfinite(self.sigma_px) or self.sigma_px < 0):
             raise ValueError("sigma_px must be >= 0")

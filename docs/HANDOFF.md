@@ -25,15 +25,16 @@ Rust (제품):
 ```bash
 export PATH="$HOME/.cargo/bin:$PATH"   # rustc/cargo는 ~/.cargo/bin
 cargo build --workspace
-cargo test -p archphoto-core            # 현재 51 passed
-cargo fmt -p archphoto-core
-./target/debug/archphoto-gui            # egui 셸 실행 확인용
+cargo test --workspace                 # 현재 81 passed (archphoto-core 77 + archphoto-gui 4)
+cargo clippy --workspace --all-targets -- -D warnings
+cargo fmt --check
+./target/debug/archphoto-gui           # egui 셸 실행 확인용
 ```
 
 Python (참조 구현·연구 실험):
 
 ```bash
-QT_QPA_PLATFORM=offscreen PYTHONPATH=src .venv/bin/python -m pytest tests -q   # 95 passed
+QT_QPA_PLATFORM=offscreen PYTHONPATH=src .venv/bin/python -m pytest tests -q   # 110 passed
 ```
 
 GitHub 푸시 (설정 변경 없이 1회용 자격증명; gh는 lzpxilfe로 로그인 상태):
@@ -48,33 +49,35 @@ git -c credential.helper= -c credential.helper='!/opt/homebrew/bin/gh auth git-c
 
 | Python 참조 (src/archphoto/) | Rust (crates/archphoto-core/src/) | 상태 |
 |---|---|---|
-| geom/crs.py (LengthUnit·SpatialFrame) | `crs.rs` | ✅ + crs_id 빈값 거부 |
-| geom/crs.py (Transform3D·쿼터니언) | `transform.rs` | ✅ 축/단위/회전 5단계 규약, 데이터툼 혼합 거부 |
-| geom/plane.py | `plane.rs` | ✅ 단면 절단용 |
-| sensing/control·observations·photos | `sensing.rs` | ✅ ControlRole Unknown은 **타입 수준**으로 진입 불가 |
-| quality/ledger·checkpoints | `quality.rs` | ✅ GCP/CHECK 분리·장부 거부·evaluate_check 통계 |
-| recon/register.py | `register.rs` | ✅ Horn+Umeyama·Jacobi(4×4 대칭)·RANSAC(SplitMix64)·Block·TiePoint |
-| mesh/product.py + archaeo/surface.py (OriginKind·ProductKind) | `mesh.rs` | ✅ 정직성 2축. **mesh_sidecar 미이식** |
-| preflight.py | `preflight.rs` | ✅ 런타임 검사 3종만; missing_crs/unknown_role 등은 컴파일 타임 승격으로 삭제-바이-설계 |
-| GUI 셸/기준점·측정 파이프라인 (PySide6) | crates/archphoto-gui `main.rs` | 🔶 합성 데모로 코어 연결·거부계약 시연. 실제 입력·뷰포트 없음 |
+| geom/crs.py (LengthUnit·SpatialFrame) | `crs.rs` | ✅ `#[non_exhaustive]` + 공백 전용 `crs_id` 거부 + 빌더 |
+| geom/crs.py (Transform3D·쿼터니언) | `transform.rs` | ✅ 축/단위/회전 5단계 규약, 데이터툼 혼합·비유한값 거부 |
+| geom/plane.py | `plane.rs` | ✅ `#[non_exhaustive]` + 유한성 검증 + 단면 절단용 |
+| sensing/control·observations·photos·cameras | `sensing.rs` | ✅ `SurveyRole` 타입 강제, `Photo::from_file`(순수 std SHA-256·PNG IHDR), `DerivedImage`, `Camera`/`Intrinsics`/`Extrinsics` |
+| quality/ledger·checkpoints | `quality.rs` | ✅ GCP/CHECK 분리·장부 거부·프레임 일관성 검사·`evaluate_check` 통계 |
+| recon/register.py | `register.rs` | ✅ Horn+Umeyama·Jacobi·RANSAC·공선(collinear) tie 거부·`SpatialFrame` 전체 일치 검사·면 인덱스 범위 검사 |
+| mesh/product.py + archaeo/surface.py | `mesh.rs` | ✅ 정직성 2축 + `SurfaceProduct` + `HonestyReport` + `MeshSidecar`(`mesh_sidecar`, JSON 직렬화) |
+| mesh/export.py | `export.rs` | ✅ OBJ/PLY(`double` 좌표 + `uchar observed`) + `.sidecar.json` 의무 동시 출력 |
+| archaeo/measure.py | `measure.rs` | ✅ `Measurement`(`derived=true`), `measure_distance`, `length_residual` |
+| archaeo/section.py | `section.rs` | ✅ `compute_section`(보간 정점 포함 삼각형 `Interpolated` 전파, 공면 삼각형 제외), `interpretation_line` |
+| archaeo/ortho.py | `ortho.rs` | ✅ `OrthoSpec`(축 직교성 검사), `OrthoGrid`, `OrthoProduct`(프레임 일치 검사) |
+| archaeo/targets.py | `targets.rs` | ✅ `TargetClass`(`Artifact`/`Feature`/`Site`), `TargetSpec` |
+| project/manifest.py | `project.rs` | ✅ `RawItem::from_file`, `ProjectManifest`, 읽기 전용 `verify_raw_integrity` (Python/Rust 모두 구현) |
+| runlog/record.py | `runlog.rs` | ✅ `ProcessState`·`ValidationState` 분리, 미측정 자원(`Option<f64> = None`) 보존 |
+| reproducibility.py | `reproducibility.rs` | ✅ `DeterminismSettings`, `compare_point_sequences`, `compare_point_maps` |
+| recon/baseline·pipeline·depth + engines/base | `baseline.rs` | ✅ `PipelineConfig`(GCP/CHECK 중복 거부), `DepthRepresentation`, `EngineInfo`, `BaselineEngine` 트레이트, `run_baseline` |
+| preflight.py | `preflight.rs` | ✅ 중복 ID·고아 관측·검증점 부재·점 간 `inconsistent_frame` 검사 |
+| GUI 셸/기준점·측정·사진뷰어 (PySide6) | crates/archphoto-gui `main.rs` | ✅ 대화형 프레임·기준점·거리 측정·사진 등록·무결성 검사·뷰어 픽셀 관측 + 합성 데모/영속 `PointUsageLedger` |
 
-테스트: Rust **51 passed** (crs5 sensing5 quality9 transform9 plane3 mesh3 preflight5 register13).
-Python 참조 **95 passed** (GUI 포함, venv).
+테스트: Rust **81 passed** (`archphoto-core` 77 + `archphoto-gui` 4), `cargo clippy -- -D warnings` 0건.
+Python 참조 **110 passed** (`tests/test_export.py` 및 `ProjectManifest.verify_raw_integrity` 포함).
 
 ---
 
 ## 4. 이어서 할 일 (우선순위 순)
 
-1. **`mesh_sidecar` 이식** (export 계약, `mesh/product.py:74` 참조) — 모든 메시 내보내기에
-   관측/보간 구분·product_kind·CRS/단위가 반드시 실리는 정직성 메커니즘. 작은 슬라이스로 시작에 적합.
-2. **사진 입력 + 픽셀 관측 이식** — Python 참조: `sensing/photos.py`(sha256 청크해시·원본 무훼손),
-   `recon/baseline.py`? 아님 `sensing/observations.py`. egui에서 파일 선택은 `rfd` 크레이트
-   (새 외부 의존성 — 영향 설명 후 추가). 뷰포트 탭 구조는 Python `gui/main_window.py`의 QTabWidget 로직 참조.
-3. **카메라 계약** (`sensing/cameras.py`) — P4/USB-ETH 기기의 K·R·t 명시 절차.
-4. **측정·단면·정사영 계산** (`archaeo/measure.py`·`section.py`·`ortho.py`) —
-   측정은 "좌표 산출값 — 직접 실측이 아님" 문구 유지.
-5. **export 계약 + 수락 기준 테스트** (`tests/test_export.py`는 Python 쪽에서도 미작성 — 함께 작성할 것).
-6. 그 다음: egui에 아이콘(assets/icons, SVG 9종) 적용, 실제 자료 테스트 설계.
+1. **네이티브 파일 대화상자 및 실제 비트맵 텍스처 디코딩** — 필요 시 외부 크레이트(`rfd`, 이미지 텍스처 업로더 등) 라이선스·영향 검토 후 egui에 연결.
+2. **egui 아이콘 렌더링** — `assets/icons/*.svg` 9종을 egui 툴바에 연결.
+3. **3D 메시 뷰포트 (`wgpu`) 및 실제 자료 수락 기준 검증** (`docs/BASELINE_T06.md`) — 사용자 실제 사진/측량 자료 도착 및 COLMAP 등 기준선 엔진 라이선스·설치 확정 후 진행.
 
 ---
 

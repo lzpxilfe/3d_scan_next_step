@@ -23,6 +23,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
+from math import isfinite
 from typing import Optional
 
 
@@ -99,7 +100,9 @@ class ControlPoint:
                 "ControlPoint.role must be GCP/CHECK/SCALE/CHECK_LENGTH (or CONSTRAINT); "
                 "UNKNOWN would break GCP/checkpoint separation"
             )
-        if self.measured_sigma is not None and self.measured_sigma < 0:
+        if not (isfinite(self.x) and isfinite(self.y) and isfinite(self.z)):
+            raise ValueError("ControlPoint coordinates must be finite")
+        if self.measured_sigma is not None and (not isfinite(self.measured_sigma) or self.measured_sigma < 0):
             raise ValueError("measured_sigma must be >= 0")
 
     @property

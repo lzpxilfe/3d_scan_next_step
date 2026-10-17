@@ -45,13 +45,28 @@ def preflight_control(control_points, observations=None) -> list[PreflightIssue]
     seen: set[str] = set()
     roles_by_id: dict[str, ControlRole] = {}
 
+    first_valid_frame = None
+
     for p in points:
         # CRS / unit must be explicit (05 §3).
         frame = getattr(p, "frame", None)
+        has_valid_frame = True
         if frame is None or not getattr(frame, "crs_id", ""):
             issues.append(PreflightIssue("missing_crs", f"{p.point_id}: 좌표계(crs_id)가 없습니다."))
+            has_valid_frame = False
         if frame is None or getattr(frame, "unit", None) is None:
             issues.append(PreflightIssue("missing_unit", f"{p.point_id}: 단위가 명시되지 않았습니다."))
+            has_valid_frame = False
+        if has_valid_frame:
+            if first_valid_frame is None:
+                first_valid_frame = frame
+            elif frame != first_valid_frame:
+                issues.append(
+                    PreflightIssue(
+                        "inconsistent_frame",
+                        f"{p.point_id}: 좌표계 프레임이 기준 프레임과 다릅니다.",
+                    )
+                )
 
         if p.role is ControlRole.UNKNOWN:
             issues.append(PreflightIssue("unknown_role", f"{p.point_id}: 역할이 UNKNOWN입니다."))

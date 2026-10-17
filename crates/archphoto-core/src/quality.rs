@@ -68,6 +68,18 @@ impl PointUsageLedger {
     pub fn is_evaluation(&self, point_id: &str) -> bool {
         self.evaluation.contains(point_id)
     }
+
+    pub fn constraint(&self) -> &HashSet<String> {
+        &self.constraint
+    }
+
+    pub fn alignment(&self) -> &HashSet<String> {
+        &self.alignment
+    }
+
+    pub fn evaluation(&self) -> &HashSet<String> {
+        &self.evaluation
+    }
 }
 
 /// Summary statistics of CHECK-point distance residuals (frame units).
@@ -111,6 +123,7 @@ pub fn apply_gcp_constraint(
     model: Option<&ModelMap>,
 ) -> ContractResult<ConstraintReport> {
     let mut report = ConstraintReport::default();
+    let expected_frame = points.first().map(|p| &p.frame);
     for point in points {
         if !point.role.used_in_calibration() {
             return Err(format!(
@@ -118,14 +131,22 @@ pub fn apply_gcp_constraint(
                 point.point_id, point.role
             ));
         }
+        if let Some(expected) = expected_frame
+            && &point.frame != expected
+        {
+            return Err(format!(
+                "Point {:?} frame ({}) differs from first constraint frame ({}); all constraint points must share one SpatialFrame.",
+                point.point_id, point.frame, expected
+            ));
+        }
         ledger.mark_constraint(point.point_id.clone());
         report.applied.push(point.point_id.clone());
-        if let Some(model) = model {
-            if let Some(reconstructed) = model.get(&point.point_id) {
-                report
-                    .residuals
-                    .insert(point.point_id.clone(), residual(*reconstructed, point));
-            }
+        if let Some(model) = model
+            && let Some(reconstructed) = model.get(&point.point_id)
+        {
+            report
+                .residuals
+                .insert(point.point_id.clone(), residual(*reconstructed, point));
         }
     }
     Ok(report)
@@ -136,19 +157,29 @@ pub fn apply_gcp_constraint(
 /// Enforces, in this order (mirroring the Python reference):
 ///   1. every point must be a CHECK (or CHECK_LENGTH) role — this is checked
 ///      before any model access, so a GCP is rejected regardless of `model`;
-///   2. every point must have a reconstructed coordinate;
-///   3. no point may have been used to fit the model (`ledger` refuses).
+///   2. all check points must share the same [`SpatialFrame`];
+///   3. every point must have a reconstructed coordinate;
+///   4. no point may have been used to fit the model (`ledger` refuses).
 pub fn evaluate_check(
     model: &ModelMap,
     check_points: &[ControlPoint],
     ledger: &mut PointUsageLedger,
 ) -> ContractResult<CheckValidation> {
     let mut out = CheckValidation::default();
+    let expected_frame = check_points.first().map(|p| &p.frame);
     for point in check_points {
         if !point.role.is_independent_check() {
             return Err(format!(
                 "Point {:?} has role {:?}; only CHECK points may be used for independent validation.",
                 point.point_id, point.role
+            ));
+        }
+        if let Some(expected) = expected_frame
+            && &point.frame != expected
+        {
+            return Err(format!(
+                "Check point {:?} frame ({}) differs from first check point frame ({}); refusing to mix frames.",
+                point.point_id, point.frame, expected
             ));
         }
         let Some(reconstructed) = model.get(&point.point_id) else {
@@ -364,5 +395,18 @@ mod tests {
         // Parsing may yield Unknown; the point layer must refuse it.
         assert_eq!(ControlRole::Unknown.as_survey_role(), None);
         assert!(ControlRole::Unknown.as_survey_role().is_none());
+    }
+
+    #[test]
+    fn evaluation_refuses_mixed_spatial_frames() {
+        let mut ledger = PointUsageLedger::default();
+        let a = pt("CHK-A", SurveyRole::Check, 0.0, 0.0, 0.0);
+        let other_frame = SpatialFrame::new("LOCAL:test", LengthUnit::Millimeter)
+            .unwrap()
+            .with_vertical_datum(crate::crs::VerticalDatum::Orthometric);
+        let b = ControlPoint::new("CHK-B", SurveyRole::Check, 0.0, 0.0, 0.0, other_frame).unwrap();
+        let m = model(&[("CHK-A", [0.0, 0.0, 0.0]), ("CHK-B", [0.0, 0.0, 0.0])]);
+        let err = evaluate_check(&m, &[a, b], &mut ledger).unwrap_err();
+        assert!(err.contains("refusing to mix frames"), "{err}");
     }
 }

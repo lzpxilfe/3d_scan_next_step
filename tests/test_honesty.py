@@ -66,3 +66,14 @@ def test_display_mesh_is_not_a_survey_record() -> None:
     s = mesh_sidecar(_mesh(product=ProductKind.DISPLAY))
     assert s["product_kind"] == "display"
     assert s["is_survey_record"] is False
+
+
+def test_mesh_rejects_out_of_range_face_indices() -> None:
+    with pytest.raises(ValueError, match="out of bounds"):
+        MeshProduct(
+            vertices=[(0, 0, 0), (1, 0, 0), (0, 1, 0)],
+            faces=[(0, 1, 3)],
+            origin=[OriginKind.OBSERVED] * 3,
+            product_kind=ProductKind.SURVEY,
+            frame=_frame(),
+        )

@@ -34,17 +34,20 @@ impl LengthUnit {
     pub fn is_metric(self) -> bool {
         !matches!(self, LengthUnit::Foot)
     }
-}
 
-impl fmt::Display for LengthUnit {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let s = match self {
+    pub fn label(self) -> &'static str {
+        match self {
             LengthUnit::Meter => "m",
             LengthUnit::Centimeter => "cm",
             LengthUnit::Millimeter => "mm",
             LengthUnit::Foot => "ft",
-        };
-        f.write_str(s)
+        }
+    }
+}
+
+impl fmt::Display for LengthUnit {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.label())
     }
 }
 
@@ -56,15 +59,36 @@ pub enum VerticalDatum {
     Unknown,
 }
 
+impl VerticalDatum {
+    pub fn label(self) -> &'static str {
+        match self {
+            VerticalDatum::Ellipsoidal => "ellipsoidal",
+            VerticalDatum::Orthometric => "orthometric",
+            VerticalDatum::Local => "local",
+            VerticalDatum::Unknown => "unknown",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AxisOrder {
     EastNorth,
     NorthEast,
 }
 
+impl AxisOrder {
+    pub fn label(self) -> &'static str {
+        match self {
+            AxisOrder::EastNorth => "EN",
+            AxisOrder::NorthEast => "NE",
+        }
+    }
+}
+
 /// CRS id + unit + height reference bound together. The CRS id is required at
 /// construction — there is no default CRS anywhere in the codebase.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct SpatialFrame {
     pub crs_id: String,
     pub unit: LengthUnit,
@@ -78,7 +102,7 @@ impl SpatialFrame {
     /// mandatory. Use "LOCAL:<name>" for site grids; never blank.
     pub fn new(crs_id: impl Into<String>, unit: LengthUnit) -> ContractResult<Self> {
         let crs_id = crs_id.into();
-        if crs_id.is_empty() {
+        if crs_id.trim().is_empty() {
             return Err("SpatialFrame.crs_id must be set explicitly".into());
         }
         Ok(SpatialFrame {
@@ -90,8 +114,21 @@ impl SpatialFrame {
         })
     }
 
+    #[must_use]
     pub fn with_vertical_datum(mut self, datum: VerticalDatum) -> Self {
         self.vertical_datum = datum;
+        self
+    }
+
+    #[must_use]
+    pub fn with_axis_order(mut self, axis_order: AxisOrder) -> Self {
+        self.axis_order = axis_order;
+        self
+    }
+
+    #[must_use]
+    pub fn with_geoid_model(mut self, geoid_model: impl Into<String>) -> Self {
+        self.geoid_model = Some(geoid_model.into());
         self
     }
 

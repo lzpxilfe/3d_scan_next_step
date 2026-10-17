@@ -30,10 +30,11 @@ dependencies = []
 
 [project.optional-dependencies]
 dev = ["pytest"]
+gui = ["PySide6>=6.6"]
 
 [project.urls]
-Documentation = "https://example.invalid/archphoto"
-Source = "https://example.invalid/archphoto"
+Documentation = "https://github.com/lzpxilfe/3d_scan_next_step"
+Source = "https://github.com/lzpxilfe/3d_scan_next_step"
 
 [tool.setuptools.packages.find]
 where = ["src"]

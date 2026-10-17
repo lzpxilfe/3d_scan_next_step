@@ -79,6 +79,12 @@ impl Transform3D {
                     .into(),
             );
         }
+        if !point.iter().all(|v| v.is_finite())
+            || !self.translation.iter().all(|v| v.is_finite())
+            || !self.quaternion_xyzw.iter().all(|v| v.is_finite())
+        {
+            return Err("Transform3D point, quaternion, and translation must be finite".into());
+        }
 
         let mut xyz = point;
         // 2. source axis order -> canonical East-North
@@ -110,9 +116,12 @@ impl Transform3D {
 /// zero-norm quaternion (`Err` for what Python raised ValueError), then
 /// applies `v' = v + 2w(q×v) + 2q×(q×v)`.
 pub fn rotate_quat(quaternion_xyzw: [f64; 4], v: Point3D) -> ContractResult<Point3D> {
+    if !quaternion_xyzw.iter().all(|x| x.is_finite()) || !v.iter().all(|x| x.is_finite()) {
+        return Err("Quaternion and vector components must be finite".into());
+    }
     let [qx, qy, qz, qw] = quaternion_xyzw;
     let norm = (qx * qx + qy * qy + qz * qz + qw * qw).sqrt();
-    if norm == 0.0 {
+    if norm == 0.0 || !norm.is_finite() {
         return Err("Quaternion has zero norm".into());
     }
     let (qx, qy, qz, qw) = (qx / norm, qy / norm, qz / norm, qw / norm);
@@ -179,10 +188,10 @@ mod tests {
     #[test]
     fn north_east_source_is_swapped_into_east_north() {
         // Stored (northing, easting) becomes (easting, northing).
-        let mut source = SpatialFrame::new("NE", LengthUnit::Meter)
+        let source = SpatialFrame::new("NE", LengthUnit::Meter)
             .unwrap()
-            .with_vertical_datum(VerticalDatum::Orthometric);
-        source.axis_order = AxisOrder::NorthEast;
+            .with_vertical_datum(VerticalDatum::Orthometric)
+            .with_axis_order(AxisOrder::NorthEast);
         let target = frame("B", LengthUnit::Meter, VerticalDatum::Orthometric);
         let t = Transform3D::new(source, target, [0.0, 0.0, 0.0, 1.0], [0.0, 0.0, 0.0]);
         approx(t.apply([10.0, 20.0, 5.0]).unwrap(), [20.0, 10.0, 5.0]);
@@ -190,10 +199,10 @@ mod tests {
 
     #[test]
     fn north_east_target_swaps_the_result_back() {
-        let mut target = SpatialFrame::new("NE", LengthUnit::Meter)
+        let target = SpatialFrame::new("NE", LengthUnit::Meter)
             .unwrap()
-            .with_vertical_datum(VerticalDatum::Orthometric);
-        target.axis_order = AxisOrder::NorthEast;
+            .with_vertical_datum(VerticalDatum::Orthometric)
+            .with_axis_order(AxisOrder::NorthEast);
         let t = Transform3D::new(
             frame("A", LengthUnit::Meter, VerticalDatum::Orthometric),
             target,
@@ -222,10 +231,10 @@ mod tests {
         //   stored (200, 100, 50) cm -> EN meters (1.0, 2.0, 0.5)
         // rotate +90° about z: (1,2,0.5) -> (-2,1,0.5)
         // translate (10,0,0) m: -> (8.0, 1.0, 0.5)
-        let mut source = SpatialFrame::new("LOCAL:site", LengthUnit::Centimeter)
+        let source = SpatialFrame::new("LOCAL:site", LengthUnit::Centimeter)
             .unwrap()
-            .with_vertical_datum(VerticalDatum::Local);
-        source.axis_order = AxisOrder::NorthEast;
+            .with_vertical_datum(VerticalDatum::Local)
+            .with_axis_order(AxisOrder::NorthEast);
         let target = frame("LOCAL:site-m", LengthUnit::Meter, VerticalDatum::Local);
         let t = Transform3D::new(
             source,
@@ -251,7 +260,7 @@ mod tests {
     }
 
     #[test]
-    fn zero_norm_quaternion_is_refused() {
+    fn zero_or_nan_quaternion_is_refused() {
         let t = Transform3D::new(
             frame("A", LengthUnit::Meter, VerticalDatum::Orthometric),
             frame("B", LengthUnit::Meter, VerticalDatum::Orthometric),
@@ -260,6 +269,14 @@ mod tests {
         );
         let err = t.apply([1.0, 1.0, 1.0]).unwrap_err();
         assert!(err.contains("zero norm"), "{err}");
+
+        let t_nan = Transform3D::new(
+            frame("A", LengthUnit::Meter, VerticalDatum::Orthometric),
+            frame("B", LengthUnit::Meter, VerticalDatum::Orthometric),
+            [f64::NAN, 0.0, 0.0, 1.0],
+            [0.0, 0.0, 0.0],
+        );
+        assert!(t_nan.apply([1.0, 1.0, 1.0]).is_err());
     }
 
     #[test]

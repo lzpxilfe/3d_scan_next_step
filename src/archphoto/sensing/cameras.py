@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
+from math import isfinite
 from typing import Optional
 
 
@@ -47,10 +48,14 @@ class Intrinsics:
     distortion: tuple[float, ...] = ()
 
     def __post_init__(self) -> None:
+        if not (isfinite(self.fx) and isfinite(self.fy) and isfinite(self.cx) and isfinite(self.cy)):
+            raise ValueError("Intrinsics parameters must be finite")
         if self.fx <= 0 or self.fy <= 0:
             raise ValueError("Intrinsics focal lengths must be positive")
         if self.width_px <= 0 or self.height_px <= 0:
             raise ValueError("Intrinsics image size must be positive")
+        if not all(isfinite(d) for d in self.distortion):
+            raise ValueError("Intrinsics distortion coefficients must be finite")
 
     @property
     def is_calibrated(self) -> bool:

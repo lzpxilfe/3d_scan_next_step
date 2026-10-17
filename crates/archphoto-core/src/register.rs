@@ -38,6 +38,7 @@ use crate::{ContractResult, Point3D};
 /// `origin` is per-vertex provenance (same length as `vertices`) and is carried
 /// through registration and stitching so honesty survives.
 #[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
 pub struct Block {
     pub block_id: String,
     pub frame: SpatialFrame,
@@ -54,11 +55,26 @@ impl Block {
         faces: Vec<[usize; 3]>,
         origin: Vec<OriginKind>,
     ) -> ContractResult<Self> {
+        let block_id = block_id.into();
+        if block_id.is_empty() {
+            return Err("Block.block_id must be set".into());
+        }
         if origin.len() != vertices.len() {
             return Err("origin length must match vertices length".into());
         }
+        if !vertices.iter().all(|v| v.iter().all(|c| c.is_finite())) {
+            return Err("block vertex coordinates must be finite".into());
+        }
+        let n_v = vertices.len();
+        for [i, j, k] in &faces {
+            if *i >= n_v || *j >= n_v || *k >= n_v {
+                return Err(format!(
+                    "face vertex index out of bounds [{i}, {j}, {k}] for {n_v} vertices"
+                ));
+            }
+        }
         Ok(Block {
-            block_id: block_id.into(),
+            block_id,
             frame,
             vertices,
             faces,
@@ -160,6 +176,7 @@ fn quat_xyzw_to_rot(q: [f64; 4]) -> [[f64; 3]; 3] {
 /// Jacobi is used (not power iteration) so the rotation is recovered precisely
 /// even when the dominant eigenvalue gap is small. Ported index-for-index from
 /// Python `_dominant_eigenvector_sym4`.
+#[allow(clippy::needless_range_loop)]
 fn dominant_eigenvector_sym4(n: [[f64; 4]; 4]) -> [f64; 4] {
     const SIZE: usize = 4;
     let mut a = n;
@@ -219,9 +236,55 @@ fn dominant_eigenvector_sym4(n: [[f64; 4]; 4]) -> [f64; 4] {
     vec.map(|x| x / norm)
 }
 
+/// Returns true if `pts` are coincident or all lie on a single 3D line,
+/// which leaves 3D rotation around that line undetermined.
+fn is_collinear_or_coincident(pts: &[Point3D]) -> bool {
+    if pts.len() < 3 {
+        return true;
+    }
+    let p0 = pts[0];
+    let mut max_d2 = 0.0f64;
+    let mut far_idx = 0usize;
+    for (idx, p) in pts.iter().enumerate().skip(1) {
+        let dx = p[0] - p0[0];
+        let dy = p[1] - p0[1];
+        let dz = p[2] - p0[2];
+        let d2 = dx * dx + dy * dy + dz * dz;
+        if d2 > max_d2 {
+            max_d2 = d2;
+            far_idx = idx;
+        }
+    }
+    if max_d2 <= 1e-18 {
+        return true;
+    }
+    let max_d = max_d2.sqrt();
+    let p_far = pts[far_idx];
+    let u = [
+        (p_far[0] - p0[0]) / max_d,
+        (p_far[1] - p0[1]) / max_d,
+        (p_far[2] - p0[2]) / max_d,
+    ];
+    let mut max_perp_d2 = 0.0f64;
+    for p in pts.iter().skip(1) {
+        let vx = p[0] - p0[0];
+        let vy = p[1] - p0[1];
+        let vz = p[2] - p0[2];
+        let proj = vx * u[0] + vy * u[1] + vz * u[2];
+        let px = vx - proj * u[0];
+        let py = vy - proj * u[1];
+        let pz = vz - proj * u[2];
+        let perp_d2 = px * px + py * py + pz * pz;
+        if perp_d2 > max_perp_d2 {
+            max_perp_d2 = perp_d2;
+        }
+    }
+    max_perp_d2 <= 1e-12 * max_d2
+}
+
 /// Closed-form best similarity mapping `src[i] → dst[i]` (Horn / Umeyama).
 ///
-/// Needs at least 3 non-degenerate correspondences. Returns
+/// Needs at least 3 non-collinear correspondences. Returns
 /// [`SimilarityFit`] whose `scale` is 1.0 when `with_scale` is false.
 pub fn fit_rigid_transform(
     src: &[Point3D],
@@ -234,6 +297,14 @@ pub fn fit_rigid_transform(
     let n = src.len();
     if n < 3 {
         return Err("need at least 3 correspondences".into());
+    }
+    if !src.iter().all(|p| p.iter().all(|c| c.is_finite()))
+        || !dst.iter().all(|p| p.iter().all(|c| c.is_finite()))
+    {
+        return Err("correspondence coordinates must be finite".into());
+    }
+    if is_collinear_or_coincident(src) || is_collinear_or_coincident(dst) {
+        return Err("correspondence points must not be collinear or coincident".into());
     }
 
     let centroid = |pts: &[Point3D]| -> Point3D {
@@ -293,7 +364,14 @@ pub fn fit_rigid_transform(
             num += ra[0] * b[0] + ra[1] * b[1] + ra[2] * b[2];
             den += a[0] * a[0] + a[1] * a[1] + a[2] * a[2];
         }
-        if den > 0.0 { num / den } else { 1.0 }
+        if den <= 0.0 {
+            return Err("degenerate scale estimate: zero source variance".into());
+        }
+        let s = num / den;
+        if !s.is_finite() || s <= 0.0 {
+            return Err("degenerate scale estimate: non-positive scale".into());
+        }
+        s
     } else {
         1.0
     };
@@ -365,6 +443,9 @@ pub fn register_blocks_ransac(
 ) -> ContractResult<RegistrationResult> {
     if ties.len() < 3 {
         return Err("need at least 3 tie points for RANSAC registration".into());
+    }
+    if !inlier_threshold.is_finite() || inlier_threshold <= 0.0 {
+        return Err("inlier_threshold must be positive and finite".into());
     }
     let mut rng = SplitMix64::new(seed);
     let n = ties.len();
@@ -495,8 +576,8 @@ pub fn apply_transform(block: &Block, reg: &RegistrationResult, frame: SpatialFr
 /// Stitch registered blocks (all already in `frame`) into one [`MeshProduct`].
 ///
 /// Per-vertex origin is concatenated, so the honesty split survives the merge.
-/// A block whose frame differs from the target frame Crs id is refused —
-/// register it first.
+/// A block whose [`SpatialFrame`] differs from the target frame (CRS id, unit,
+/// axis order, or vertical datum) is refused — register/convert it first.
 pub fn merge_blocks(
     blocks: &[Block],
     frame: SpatialFrame,
@@ -507,10 +588,10 @@ pub fn merge_blocks(
     let mut origin: Vec<OriginKind> = Vec::new();
     let mut offset = 0usize;
     for b in blocks {
-        if b.frame.crs_id != frame.crs_id {
+        if b.frame != frame {
             return Err(format!(
-                "block {:?} is not in the target frame; register it first",
-                b.block_id
+                "block {:?} is not in the target frame ({} vs {}); register it first",
+                b.block_id, b.frame, frame
             ));
         }
         vertices.extend(b.vertices.iter().copied());
@@ -568,12 +649,17 @@ fn sample_3(n: usize, rng: &mut SplitMix64) -> [usize; 3] {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::crs::LengthUnit;
+    use crate::crs::{LengthUnit, VerticalDatum};
     use crate::quality::evaluate_check;
     use crate::sensing::{ControlPoint, SurveyRole};
 
     /// 90° about Z, quaternion (x, y, z, w).
-    const Q90Z: [f64; 4] = [0.0, 0.0, 0.707_106_781_186_547_6, 0.707_106_781_186_547_6];
+    const Q90Z: [f64; 4] = [
+        0.0,
+        0.0,
+        std::f64::consts::FRAC_1_SQRT_2,
+        std::f64::consts::FRAC_1_SQRT_2,
+    ];
 
     fn frame() -> SpatialFrame {
         SpatialFrame::new("LOCAL:t", LengthUnit::Millimeter).unwrap()
@@ -645,9 +731,16 @@ mod tests {
     }
 
     #[test]
-    fn fit_contract_refuses_mismatched_or_thin_correspondences() {
+    fn fit_contract_refuses_mismatched_thin_or_collinear_correspondences() {
         assert!(fit_rigid_transform(&SRC[..3], &SRC[..2], false).is_err());
         assert!(fit_rigid_transform(&SRC[..2], &SRC[..2], false).is_err());
+        // Collinear 3D points along X axis must be refused!
+        let collinear = [[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [2.0, 0.0, 0.0]];
+        let err = fit_rigid_transform(&collinear, &collinear, false).unwrap_err();
+        assert!(err.contains("collinear or coincident"), "{err}");
+        // Coincident points must be refused!
+        let coincident = [[1.0, 1.0, 1.0]; 3];
+        assert!(fit_rigid_transform(&coincident, &SRC[..3], false).is_err());
     }
 
     #[test]
@@ -682,7 +775,7 @@ mod tests {
     }
 
     #[test]
-    fn block_origin_contract_is_enforced() {
+    fn block_origin_and_face_bounds_contract_is_enforced() {
         assert!(
             Block::new(
                 "b1",
@@ -693,16 +786,27 @@ mod tests {
             )
             .is_ok()
         );
+        // Origin length mismatch
         assert!(
             Block::new(
                 "b2",
                 frame(),
                 vec![[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]],
-                vec![[0, 1, 2]],
+                vec![],
                 vec![OriginKind::Observed]
             )
             .is_err()
         );
+        // Out-of-bounds face vertex index
+        let err = Block::new(
+            "b3",
+            frame(),
+            vec![[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]],
+            vec![[0, 1, 2]],
+            vec![OriginKind::Observed; 2],
+        )
+        .unwrap_err();
+        assert!(err.contains("out of bounds"), "{err}");
     }
 
     #[test]
@@ -731,9 +835,13 @@ mod tests {
     }
 
     #[test]
-    fn merge_rejects_unregistered_block() {
+    fn merge_rejects_unregistered_or_mismatched_unit_block() {
         let f = frame();
-        let other = SpatialFrame::new("LOCAL:other", LengthUnit::Millimeter).unwrap();
+        let other_crs = SpatialFrame::new("LOCAL:other", LengthUnit::Millimeter).unwrap();
+        let other_unit = SpatialFrame::new("LOCAL:t", LengthUnit::Meter).unwrap();
+        let other_datum = SpatialFrame::new("LOCAL:t", LengthUnit::Millimeter)
+            .unwrap()
+            .with_vertical_datum(VerticalDatum::Orthometric);
         let b1 = Block::new(
             "b1",
             f.clone(),
@@ -742,16 +850,18 @@ mod tests {
             vec![OriginKind::Observed; 3],
         )
         .unwrap();
-        let b2 = Block::new(
-            "b2",
-            other,
-            vec![[2.0, 2.0, 2.0], [3.0, 2.0, 2.0], [2.0, 3.0, 2.0]],
-            vec![[0, 1, 2]],
-            vec![OriginKind::Observed; 3],
-        )
-        .unwrap();
-        let err = merge_blocks(&[b1, b2], f, ProductKind::Survey).unwrap_err();
-        assert!(err.contains("register it first"), "{err}");
+        for bad_frame in [other_crs, other_unit, other_datum] {
+            let b2 = Block::new(
+                "b2",
+                bad_frame,
+                vec![[2.0, 2.0, 2.0], [3.0, 2.0, 2.0], [2.0, 3.0, 2.0]],
+                vec![[0, 1, 2]],
+                vec![OriginKind::Observed; 3],
+            )
+            .unwrap();
+            let err = merge_blocks(&[b1.clone(), b2], f.clone(), ProductKind::Survey).unwrap_err();
+            assert!(err.contains("register it first"), "{err}");
+        }
     }
 
     #[test]
@@ -788,11 +898,19 @@ mod tests {
         let clean = known_similarity(1.0);
         for t in &ties {
             if reg.inlier_ids.contains(&t.tie_id) {
-                let pred =
-                    apply_similarity(reg.quaternion_xyzw, reg.translation, reg.scale, t.src_point);
+                let pred = apply_similarity(
+                    reg.quaternion_xyzw,
+                    reg.translation,
+                    fit_scale(&reg),
+                    t.src_point,
+                );
                 approx_v(pred, clean(t.src_point), 1e-6);
             }
         }
+    }
+
+    fn fit_scale(reg: &RegistrationResult) -> f64 {
+        reg.scale
     }
 
     #[test]
@@ -815,8 +933,8 @@ mod tests {
         for id in &reg.inlier_ids {
             assert!(ledger.fitted().contains(id), "{id} should be marked");
         }
-        assert!(ledger.fitted().contains("T0") == false);
-        assert!(ledger.fitted().contains("T1") == false);
+        assert!(!ledger.fitted().contains("T0"));
+        assert!(!ledger.fitted().contains("T1"));
     }
 
     /// Convenience: ties for the outlier scenario, returning the clean mapping.

@@ -8,10 +8,10 @@
 > **상태: 코드 스캐폴드 단계.** 아직 실행 가능한 복원 알고리즘은 포함되어 있지 않습니다.
 > 이 저장소는 요구·데이터 계약·모듈 경계를 코드 형태로 고정한 뼈대입니다.
 
-> **언어 전환 중 [D-2026-10-12-11]:** 제품 코어와 GUI를 Python에서 **Rust**로 전면 이식합니다
-> (배포 단순성·계약의 컴파일 타임 강제·고속화 코어 성능). `crates/`가 이식 대상이며,
+> **언어 전환 [D-2026-10-12-11]:** 제품 코어와 GUI를 Python에서 **Rust**로 전면 이식했습니다
+> (배포 단순성·계약의 컴파일 타임 강제·고속화 코어 성능). `crates/`가 제품 워크스페이스이며,
 > `src/archphoto/`(Python)은 계약의 **참조 구현**으로 보존됩니다 — 조용히 삭제하지 않습니다.
-> Python 테스트(95)의 의미는 Rust 테스트로 이식됩니다.
+> 현재 합성 계약 테스트는 **Rust 81 passed**, **Python 110 passed**입니다.
 
 ## 이 프로젝트의 차별점 [사용자 확정]
 
@@ -32,22 +32,16 @@
 
 ```
 LICENSE, NOTICE        라이선스(Apache-2.0 방향)와 서드파티 검증 고지
-pyproject.toml         Python 패키징
+Cargo.toml             Rust 워크스페이스 (제품 코어 + egui GUI)
+pyproject.toml         Python 참조 구현 패키징
 docs/DECISIONS.md      결정 기록 (범위 변경·라이선스·미검증 항목)
+docs/HANDOFF.md        이식 현황 및 인계 문서
 data/schemas/          데이터 계약 (사진·GCP/검증점·런기록 JSON Schema)
-src/archphoto/
-  project/     프로젝트·세션·원자료 보존
-  sensing/     사진·카메라·GCP·검증점 입력
-  geom/        좌표계·단위·변환
-  recon/       새 알고리즘 파이프라인 + 고속 복원(R01)
-  engines/     기존 엔진 어댑터 (기준선 경로, 스텁)
-  archaeo/     고고학 워크플로 특화
-  mesh/        3D 메쉬 생성·출력
-  quality/     독립 검증 (검증점 제외 원칙)
-  runlog/      실행 기록·자원·상태
-  gui/         GUI (프레임워크 미확정, 스텁)
-tests/         스모크 테스트 (합성 테스트만, 실제 검증과 구분)
-examples/      예제 (추후)
+crates/
+  archphoto-core/      측량·기하·정합·고고학 산출물·내보내기 코어 계약 (외부 의존성 0)
+  archphoto-gui/       egui 0.37 데스크톱 GUI 셸
+src/archphoto/         Python 참조 구현 (PySide6 참조 GUI 포함)
+tests/                 Python 참조 구현 테스트 (합성 테스트만, 실제 검증과 구분)
 ```
 
 ## 요구 문서와의 관계
@@ -61,10 +55,12 @@ examples/      예제 (추후)
 
 ## 빠른 시작 (스캐폴드 검증용)
 
-아직 의존성이 없어 가볍게 가져오기만 확인합니다.
-
 ```bash
-PYTHONPATH=src python -c "import archphoto; print(archphoto.__version__)"
+# Rust 제품 코어·GUI 테스트 및 정적 분석
+cargo test --workspace
+cargo clippy --workspace --all-targets -- -D warnings
+
+# Python 참조 구현 테스트
 PYTHONPATH=src python -m pytest tests -q
 ```
 

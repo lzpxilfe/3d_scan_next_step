@@ -161,10 +161,12 @@ def test_measure_distance_and_reference_residual(app) -> None:
 def test_measure_fill_from_selected_point(app) -> None:
     win = MainWindow()
     win.set_control_frame("LOCAL:m", "m", "EN", "orthometric")
-    win.add_control_point("GCP-01", "gcp", 10.0, 20.0, 30.0)
+    win.add_control_point("GCP-01", "gcp", 123456.789, 4123456.125, 30.0)
     win.control_panel.table.selectRow(0)
     win.measure_panel.fill_b_button.click()
-    assert win.measure_panel.point("b") == (10.0, 20.0, 30.0)
+    assert win.measure_panel.point("b") == (123456.789, 4123456.125, 30.0)
+    rows = win.control_panel.row_texts()
+    assert rows[0][2] == "123456.789" and rows[0][3] == "4123456.125"
 
 
 def test_unimplemented_actions_log_honestly(app) -> None:

@@ -14,6 +14,7 @@ present interpolated geometry as observed fact.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from math import isfinite
 
 from archphoto.archaeo.surface import OriginKind, ProductKind
 from archphoto.geom.crs import SpatialFrame
@@ -44,6 +45,12 @@ class MeshProduct:
             raise ValueError("origin length must match vertices length")
         if self.product_kind not in (ProductKind.SURVEY, ProductKind.DISPLAY):
             raise ValueError("product_kind must be SURVEY or DISPLAY")
+        if not all(all(isfinite(c) for c in v) for v in self.vertices):
+            raise ValueError("mesh vertex coordinates must be finite")
+        n_v = len(self.vertices)
+        for i, j, k in self.faces:
+            if not (0 <= i < n_v and 0 <= j < n_v and 0 <= k < n_v):
+                raise ValueError(f"face vertex index out of bounds ({i}, {j}, {k}) for {n_v} vertices")
 
     def observed_fraction(self) -> float:
         if not self.origin:

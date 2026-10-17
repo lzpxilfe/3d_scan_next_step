@@ -56,11 +56,24 @@ def test_interpolated_face_is_flagged_in_section() -> None:
     assert sec.segment_origin == [OriginKind.INTERPOLATED]
 
 
-def test_observed_vertex_makes_segment_observed() -> None:
+def test_partially_interpolated_face_is_flagged_interpolated() -> None:
     verts = [(0, 0, -1), (1, 0, 1), (0, 1, 1)]
     origin = [OriginKind.OBSERVED, OriginKind.INTERPOLATED, OriginKind.INTERPOLATED]
     sec = compute_section(verts, [(0, 1, 2)], _zplane(), vertex_origin=origin)
+    assert sec.segment_origin == [OriginKind.INTERPOLATED]
+
+
+def test_fully_observed_face_makes_segment_observed() -> None:
+    verts = [(0, 0, -1), (1, 0, 1), (0, 1, 1)]
+    origin = [OriginKind.OBSERVED] * 3
+    sec = compute_section(verts, [(0, 1, 2)], _zplane(), vertex_origin=origin)
     assert sec.segment_origin == [OriginKind.OBSERVED]
+
+
+def test_coplanar_triangle_gives_no_segment() -> None:
+    verts = [(0, 0, 0), (1, 0, 0), (0, 1, 0)]
+    sec = compute_section(verts, [(0, 1, 2)], _zplane())
+    assert sec.segments == []
 
 
 def test_interpretation_line_is_not_computed() -> None:

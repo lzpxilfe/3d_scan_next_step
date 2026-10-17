@@ -122,3 +122,26 @@ def test_ransac_marks_only_inliers_in_ledger() -> None:
     reg = register_blocks_ransac(ties, _frame(), inlier_threshold=0.1, iterations=300, seed=0, ledger=ledger)
     assert set(reg.inlier_ids) <= ledger.alignment
     assert "T0" not in ledger.alignment and "T1" not in ledger.alignment
+
+
+def test_collinear_tie_points_are_refused() -> None:
+    collinear_src = [(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (2.0, 0.0, 0.0)]
+    collinear_dst = [(0.0, 1.0, 0.0), (1.0, 1.0, 0.0), (2.0, 1.0, 0.0)]
+    with pytest.raises(ValueError, match="collinear"):
+        fit_rigid_transform(collinear_src, collinear_dst)
+
+
+def test_merge_rejects_mismatched_vertical_datum_even_with_same_crs_and_unit() -> None:
+    from archphoto.geom.crs import VerticalDatum
+
+    f1 = SpatialFrame(crs_id="EPSG:5186", unit=LengthUnit.METER, vertical_datum=VerticalDatum.ORTHOMETRIC)
+    f2 = SpatialFrame(crs_id="EPSG:5186", unit=LengthUnit.METER, vertical_datum=VerticalDatum.ELLIPSOIDAL)
+    b1 = Block("b1", f1, [(0, 0, 0), (1, 0, 0), (0, 1, 0)], [(0, 1, 2)], [OriginKind.OBSERVED] * 3)
+    b2 = Block("b2", f2, [(2, 2, 2), (3, 2, 2), (2, 3, 2)], [(0, 1, 2)], [OriginKind.OBSERVED] * 3)
+    with pytest.raises(ValueError):
+        merge_blocks([b1, b2], f1)
+
+
+def test_block_rejects_out_of_range_face_index() -> None:
+    with pytest.raises(ValueError, match="out of bounds"):
+        Block("b1", _frame(), [(0, 0, 0), (1, 0, 0), (0, 1, 0)], [(0, 1, 9)], [OriginKind.OBSERVED] * 3)

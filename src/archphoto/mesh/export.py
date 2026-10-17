@@ -73,9 +73,9 @@ def _write_ply(mesh: MeshProduct, path: Path) -> None:
         f"comment crs_id {mesh.frame.crs_id}",
         f"comment unit {mesh.frame.unit.value}",
         f"element vertex {n_v}",
-        "property float x",
-        "property float y",
-        "property float z",
+        "property double x",
+        "property double y",
+        "property double z",
         "property uchar observed",  # honesty travels inside the mesh
         f"element face {n_f}",
         "property list uchar int vertex_indices",

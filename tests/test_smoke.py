@@ -91,3 +91,24 @@ def test_run_record_carries_provenance_fields() -> None:
     r = RunRecord(run_id="r2")
     assert r.engine_version == "" and r.code_version == "" and r.weight_version == ""
     assert r.retry_count == 0 and r.selected_views == ()
+
+
+def test_project_manifest_verifies_raw_integrity_without_modifying_files(tmp_path) -> None:
+    import hashlib
+    from archphoto.project.manifest import ProjectManifest, RawItem
+
+    raw_file = tmp_path / "IMG_001.jpg"
+    payload = b"\xff\xd8original-bytes"
+    raw_file.write_bytes(payload)
+    digest = hashlib.sha256(payload).hexdigest()
+
+    manifest = ProjectManifest(project_id="proj-1", raw_root=str(tmp_path))
+    manifest.register_raw(
+        RawItem(rel_path="IMG_001.jpg", sha256=digest, kind="photo", byte_size=len(payload))
+    )
+    assert manifest.verify_raw_integrity() == []
+    assert raw_file.read_bytes() == payload
+
+    # Simulate external tampering in temp dir: manifest must detect the mismatch
+    raw_file.write_bytes(b"\xff\xd8tampered-bytes")
+    assert manifest.verify_raw_integrity() == ["IMG_001.jpg"]

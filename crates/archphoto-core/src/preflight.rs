@@ -13,8 +13,10 @@
 //!   - `unknown_role`: ControlPoint stores the validated SurveyRole; UNKNOWN
 //!     cannot enter;
 //!   - `bad_observation`: PhotoObservation::new refuses empty ids.
+//!
 //! Kept here (list-level checks no constructor can know):
 //!   - `duplicate_id`: ids unique across the survey set;
+//!   - `inconsistent_frame`: all points in a survey set must share the same SpatialFrame;
 //!   - `no_check_point` (warning): at least one CHECK point must exist or
 //!     independent validation is impossible;
 //!   - `orphan_observation`: pixel observation referencing an unknown point.
@@ -78,12 +80,24 @@ pub fn preflight_control(
     let mut issues = Vec::new();
     let mut seen: HashSet<&str> = HashSet::new();
     let mut has_check = false;
+    let first_frame = points.first().map(|p| &p.frame);
 
     for p in points {
         if !seen.insert(p.point_id.as_str()) {
             issues.push(PreflightIssue::error(
                 "duplicate_id",
                 format!("{}: point_id가 중복됩니다.", p.point_id),
+            ));
+        }
+        if let Some(expected) = first_frame
+            && &p.frame != expected
+        {
+            issues.push(PreflightIssue::error(
+                "inconsistent_frame",
+                format!(
+                    "{}: 좌표계 프레임({})이 기준 프레임({})과 다릅니다.",
+                    p.point_id, p.frame, expected
+                ),
             ));
         }
         has_check |= p.role.is_independent_check();
@@ -139,6 +153,21 @@ mod tests {
         assert_eq!(dups.len(), 1);
         assert_eq!(dups[0].severity, Severity::Error);
         assert!(dups[0].message.contains("중복"));
+    }
+
+    #[test]
+    fn inconsistent_frames_are_reported_as_error() {
+        let other = SpatialFrame::new("LOCAL:t", LengthUnit::Millimeter).unwrap();
+        let points = vec![
+            pt("GCP-1", SurveyRole::Gcp),
+            ControlPoint::new("CHK-1", SurveyRole::Check, 0.0, 0.0, 0.0, other).unwrap(),
+        ];
+        let issues = preflight_control(&points, None);
+        assert!(
+            issues
+                .iter()
+                .any(|i| i.code == "inconsistent_frame" && i.severity == Severity::Error)
+        );
     }
 
     #[test]

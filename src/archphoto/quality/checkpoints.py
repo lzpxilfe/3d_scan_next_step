@@ -64,11 +64,16 @@ def apply_gcp_constraint(
     the ledger so they cannot later be used for independent evaluation.
     """
     report = ConstraintReport()
+    expected_frame = points[0].frame if points else None
     for p in points:
         if not p.role.used_in_calibration:
             raise ValueError(
                 f"Point {p.point_id!r} has role {p.role.value!r}; CHECK points "
                 "must not be used to constrain the model."
+            )
+        if expected_frame is not None and p.frame != expected_frame:
+            raise ValueError(
+                f"Point {p.point_id!r} frame differs from first constraint frame; refusing to mix frames."
             )
         ledger.mark_constraint(p.point_id)
         report.applied.append(p.point_id)
@@ -87,15 +92,21 @@ def evaluate_check(
 
     Enforces:
       1. every point must be a CHECK (or CHECK_LENGTH) role;
-      2. no point may have been used to fit the model (constraint/alignment).
+      2. all check points must share the same SpatialFrame;
+      3. no point may have been used to fit the model (constraint/alignment).
     """
     ledger = ledger if ledger is not None else PointUsageLedger()
     out = CheckValidation()
+    expected_frame = check_points[0].frame if check_points else None
     for p in check_points:
         if not p.role.is_independent_check:
             raise ValueError(
                 f"Point {p.point_id!r} has role {p.role.value!r}; only CHECK "
                 "points may be used for independent validation."
+            )
+        if expected_frame is not None and p.frame != expected_frame:
+            raise ValueError(
+                f"Check point {p.point_id!r} frame differs from first check point frame; refusing to mix frames."
             )
         if p.point_id not in model:
             raise KeyError(f"No reconstructed coordinate for check point {p.point_id!r}")

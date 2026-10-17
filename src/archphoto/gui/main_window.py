@@ -310,7 +310,7 @@ class MainWindow(QMainWindow):
         )
         self.control_points.append(point)
         role_label = ROLE_LABELS[point.role.value]
-        values = [f"{x:g}", f"{y:g}", f"{z:g}", "" if sigma is None else f"{sigma:g}", source]
+        values = [f"{x:.12g}", f"{y:.12g}", f"{z:.12g}", "" if sigma is None else f"{sigma:.12g}", source]
         self.control_panel.add_point_row(point.point_id, role_label, values)
         self._update_control_note()
         self._show_readout(point)

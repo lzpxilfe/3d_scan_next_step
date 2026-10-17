@@ -11,13 +11,22 @@
 //! role cannot become a control point, and using a fitted point for
 //! independent evaluation is refused.
 
+pub mod baseline;
 pub mod crs;
+pub mod export;
+pub mod measure;
 pub mod mesh;
+pub mod ortho;
 pub mod plane;
 pub mod preflight;
+pub mod project;
 pub mod quality;
 pub mod register;
+pub mod reproducibility;
+pub mod runlog;
+pub mod section;
 pub mod sensing;
+pub mod targets;
 pub mod transform;
 
 /// 3D point as (x, y, z) in an explicit frame's units.

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
-from math import sqrt
+from math import isfinite, sqrt
 from typing import Optional
 
 
@@ -62,7 +62,7 @@ class SpatialFrame:
     description: str = ""
 
     def __post_init__(self) -> None:
-        if not self.crs_id:
+        if not self.crs_id or not self.crs_id.strip():
             raise ValueError("SpatialFrame.crs_id must be set explicitly")
 
     def is_metric(self) -> bool:
@@ -111,6 +111,12 @@ class Transform3D:
                 "Vertical datums differ; a geoid/height transform is required and "
                 "is not applied here. Refusing to mix height references silently."
             )
+        if (
+            not all(isfinite(v) for v in point)
+            or not all(isfinite(v) for v in self.translation)
+            or not all(isfinite(v) for v in self.quaternion_xyzw)
+        ):
+            raise ValueError("Transform3D point, quaternion, and translation must be finite")
 
         x, y, z = point
         # 2. source axis order -> canonical East-North
@@ -148,9 +154,11 @@ def _rotate_quat(
     v: tuple[float, float, float],
 ) -> tuple[float, float, float]:
     """Rotate vector ``v`` by a unit quaternion (x, y, z, w)."""
+    if not all(isfinite(x) for x in quaternion_xyzw) or not all(isfinite(x) for x in v):
+        raise ValueError("Quaternion and vector components must be finite")
     qx, qy, qz, qw = quaternion_xyzw
     norm = sqrt(qx * qx + qy * qy + qz * qz + qw * qw)
-    if norm == 0.0:
+    if norm == 0.0 or not isfinite(norm):
         raise ValueError("Quaternion has zero norm")
     qx, qy, qz, qw = qx / norm, qy / norm, qz / norm, qw / norm
 
