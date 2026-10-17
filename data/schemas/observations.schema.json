@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "archphoto/schemas/observations.schema.json",
+  "title": "Per-photo pixel observations of control points",
+  "description": "05 §2: a point's surveyed 3D coordinate (control_points.schema.json) and its per-photo 2D PIXEL measurements are stored in SEPARATE structures. This file holds only the 2D image measurements. Coordinates are in pixels; whether they are raw or undistorted is stated explicitly.",
+  "type": "object",
+  "required": ["observations"],
+  "properties": {
+    "observations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["point_id", "photo_id", "x_px", "y_px"],
+        "properties": {
+          "point_id": { "type": "string", "minLength": 1, "description": "Links to a ControlPoint.point_id" },
+          "photo_id": { "type": "string", "minLength": 1, "description": "Links to a Photo.photo_id" },
+          "x_px": { "type": "number", "description": "Pixel x in the photo grid" },
+          "y_px": { "type": "number", "description": "Pixel y in the photo grid" },
+          "sigma_px": { "type": ["number", "null"], "minimum": 0, "description": "1-sigma pixel measurement uncertainty" },
+          "photo_undistorted": { "type": "boolean", "default": false, "description": "True if coords are in an undistorted/normalized plane rather than raw sensor pixels" }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,47 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+.env
+
+# Test / typing caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Project data: NEVER commit raw field data, photos, or survey files.
+# These are original research materials and must be preserved, not overwritten.
+data/raw/
+data/inputs/
+*.jpg
+*.jpeg
+*.tif
+*.tiff
+*.raw
+*.dng
+*.las
+*.laz
+*.e57
+
+# Large model weights (license and size reasons)
+*.pt
+*.pth
+*.ckpt
+*.onnx
+*.safetensors
+
+# Build outputs / local runs
+runs/
+outputs/
+cache/

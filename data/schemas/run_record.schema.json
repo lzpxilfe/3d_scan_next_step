@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "archphoto/schemas/run_record.schema.json",
+  "title": "Run record",
+  "description": "One processing run. process_state (did it run) and validation_state (survey validation) are SEPARATE; a successful run does not imply validation passed. Resource metrics are nullable meaning 'unmeasured'.",
+  "type": "object",
+  "required": ["run_id", "process_state", "validation_state"],
+  "properties": {
+    "run_id": { "type": "string", "minLength": 1 },
+    "started_at": { "type": ["string", "null"], "format": "date-time" },
+    "finished_at": { "type": ["string", "null"], "format": "date-time" },
+    "process_state": { "enum": ["not_started", "running", "succeeded", "failed", "partial"] },
+    "validation_state": { "enum": ["not_run", "passed", "failed", "inconclusive"] },
+    "parameters": { "type": "object" },
+    "resources": {
+      "type": "object",
+      "properties": {
+        "wall_seconds": { "type": ["number", "null"], "minimum": 0 },
+        "peak_ram_mb": { "type": ["number", "null"], "minimum": 0 },
+        "peak_vram_mb": { "type": ["number", "null"], "minimum": 0 },
+        "disk_mb": { "type": ["number", "null"], "minimum": 0 }
+      },
+      "description": "null means NOT measured, never zero."
+    },
+    "log_path": { "type": ["string", "null"] },
+    "failure_reason": { "type": ["string", "null"] },
+    "engine_version": { "type": "string" },
+    "code_version": { "type": "string" },
+    "weight_version": { "type": "string" },
+    "input_hashes": { "type": "object", "description": "input id -> digest (e.g. photo_id -> sha256)" },
+    "selected_views": { "type": "array", "items": { "type": "string" }, "description": "view subset actually used (R01 view selection)" },
+    "outputs": { "type": "array", "items": { "type": "string" } },
+    "retry_count": { "type": "integer", "minimum": 0 }
+  }
+}

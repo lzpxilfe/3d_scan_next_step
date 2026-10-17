@@ -1,0 +1,29 @@
+Archaeology Photogrammetry (working package name: archphoto)
+Copyright contributors.
+
+This product includes software developed for archaeology-specific
+photogrammetry (artifacts, features, sites) producing verifiable 3D meshes.
+
+Licensing status
+----------------
+The intended distribution license is the Apache License, Version 2.0
+(see ./LICENSE). This is a decision-direction [D] recorded in
+docs/DECISIONS.md and is not yet treated as a final, release-ready claim.
+
+Third-party components and compatibility (NOT YET VERIFIED)
+-----------------------------------------------------------
+This project is designed to interoperate with, or optionally bundle,
+third-party photogrammetry engines and machine-learning models. Their
+licenses have NOT been checked in this scaffold and MUST be verified before
+any public release or redistribution:
+
+  - Structure-from-Motion / MVS engines (e.g. COLMAP, OpenDroneMap, and
+    others) — each has its own license; confirm the exact license of the
+    specific version used and whether bundling is permitted.
+  - Learned depth / reconstruction model weights — weights frequently carry
+    licenses distinct from their code (research-only, non-commercial, or
+    attribution requirements). Do not assume Apache-2.0 compatibility.
+  - Any GUI toolkit, geometry kernel, or numerical library eventually chosen.
+
+Do not represent any of the above as Apache-2.0-compatible until the exact
+license text and version have been confirmed and recorded here.

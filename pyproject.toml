@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "archphoto"
+version = "0.0.1"
+description = "Open-source archaeology-specific photogrammetry for verifiable 3D meshes (artifacts, features, sites)"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Apache-2.0" }
+authors = [{ name = "archphoto contributors" }]
+keywords = ["photogrammetry", "archaeology", "cultural-heritage", "3d-mesh", "sfm", "mvs"]
+classifiers = [
+  "License :: OSI Approved :: Apache Software License",
+  "Programming Language :: Python :: 3",
+  "Topic :: Scientific/Engineering :: Image Processing",
+  "Topic :: Scientific/Engineering :: Visualization",
+]
+
+# Runtime dependencies are intentionally EMPTY at this stage.
+# Any dependency must be chosen, version-checked, and license-checked before
+# being added here (see NOTICE and docs/DECISIONS.md). Candidate areas [O]:
+#   - numerical / array: numpy
+#   - geometry & mesh: open3d / trimesh / pyvista
+#   - image I/O & EXIF: pillow / rawpy / exifread
+#   - geospatial / CRS: pyproj
+#   - ML depth (research path): a torch-based stack, pending GPU/license check
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest"]
+
+[project.urls]
+Documentation = "https://example.invalid/archphoto"
+Source = "https://example.invalid/archphoto"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

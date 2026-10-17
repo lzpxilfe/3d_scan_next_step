@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "archphoto/schemas/control_points.schema.json",
+  "title": "Survey control points (GCP and independent CHECK points)",
+  "description": "Data contract for surveyed control. The 'role' field enforces GCP vs CHECK separation. Coordinates must reference an explicit spatial frame (CRS, unit, vertical datum). Per-photo PIXEL observations are stored SEPARATELY (see observations.schema.json) per 05 §2.",
+  "type": "object",
+  "required": ["spatial_frame", "points"],
+  "properties": {
+    "spatial_frame": {
+      "type": "object",
+      "required": ["crs_id", "unit"],
+      "properties": {
+        "crs_id": { "type": "string", "minLength": 1, "description": "e.g. EPSG:5186 or LOCAL:<name>. Never blank." },
+        "unit": { "enum": ["m", "mm", "cm", "ft"] },
+        "axis_order": { "enum": ["EN", "NE"], "default": "EN" },
+        "vertical_datum": { "enum": ["ellipsoidal", "orthometric", "local", "unknown"] },
+        "geoid_model": { "type": ["string", "null"] }
+      }
+    },
+    "points": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["point_id", "role", "x", "y", "z"],
+        "properties": {
+          "point_id": { "type": "string", "minLength": 1 },
+          "role": { "enum": ["gcp", "check", "scale", "check_length", "constraint"], "description": "MUST NOT be 'unknown' for real data. 'gcp'/'scale'/'constraint' constrain the model; 'check'/'check_length' are NEVER used in calibration (independent validation only)." },
+          "x": { "type": "number" },
+          "y": { "type": "number" },
+          "z": { "type": "number" },
+          "measured_sigma": { "type": ["number", "null"], "minimum": 0, "description": "Survey measurement uncertainty in frame units (NOT model error)." },
+          "source": { "type": "string", "description": "e.g. GNSS-RTK, total-station" }
+        }
+      }
+    }
+  }
+}
