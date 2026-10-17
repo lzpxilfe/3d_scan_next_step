@@ -12,8 +12,10 @@
 //! independent evaluation is refused.
 
 pub mod crs;
+pub mod mesh;
 pub mod plane;
 pub mod quality;
+pub mod register;
 pub mod sensing;
 pub mod transform;
 
