@@ -286,3 +286,51 @@ def test_markers_filter_by_loaded_photo(app, tmp_path) -> None:
     win.photo_viewer.load_photo("IMG_001")
     assert win.photo_viewer.marker_group_count() == 1  # IMG_001 only
     assert {o.photo_id for o in win.observations} == {"IMG_001", "IMG_002"}
+
+
+def test_workflow_stepper_and_crs_presets(app) -> None:
+    win = MainWindow()
+    win.control_panel.preset_epsg_btn.click()
+    assert win._control_frame is not None
+    assert win._control_frame.crs_id == "EPSG:5186"
+    win.stepper._on_click("stage_deliver")
+    assert win.stepper.active_stage() == "stage_deliver"
+
+
+def test_csv_control_import_and_validation_and_export_gate(app) -> None:
+    from archphoto.archaeo.surface import ProductKind
+
+    win = MainWindow()
+    win.set_control_frame("EPSG:5186", "m", "EN", "orthometric")
+    added = win.import_control_csv_lines(
+        [
+            "id,role,x,y,z,sigma,source",
+            "GCP-1,gcp,100.0,200.0,15.20,0.005,TS-01",
+            "GCP-2,gcp,102.5,200.0,15.22,0.005,TS-01",
+            "GCP-3,gcp,100.0,203.0,15.19,0.005,TS-01",
+            "CHK-1,check,101.2,201.5,15.21,0.005,TS-01",
+        ]
+    )
+    assert added == 4
+    assert win.viewport_3d.canvas.mesh is not None
+    assert len(win.viewport_3d.section_canvas.profile_points) >= 4
+
+    assert win.run_validation_workflow() is True
+    assert win.pipeline_panel.states()["validate"] == "통과"
+    assert "CHK-1" in win.check_residuals
+
+    # Preview mesh contains an interpolated cell -> SURVEY export is refused, DISPLAY is allowed
+    assert win.check_export_gate(ProductKind.SURVEY) is False
+    assert win.check_export_gate(ProductKind.DISPLAY) is True
+
+
+def test_field_survey_preset_and_loupe_focus(app) -> None:
+    win = MainWindow()
+    win.load_field_survey_preset()
+    assert len(win.photos) == 2
+    assert len(win.control_points) == 6
+    assert len(win.observations) == 6
+    assert win.pipeline_panel.states()["validate"] == "통과"
+    assert win.photo_viewer.view._focus_scene_pos is not None
+    assert win.verify_manifest_integrity() == []
+
